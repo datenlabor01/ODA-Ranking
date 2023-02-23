@@ -1,0 +1,81 @@
+# **ODA Geberranking:**
+
+#Query Net ODA: https://stats.oecd.org//Index.aspx?QueryId=120047
+#Query ODA Commitments: https://stats.oecd.org//Index.aspx?QueryId=120047, header = 11
+import pandas as pd 
+net_df = pd.read_excel("https://github.com/datenlabor01/ODA-Ranking/blob/main/odanet.xlsx?raw=true", header = 8)
+
+#To extract column names where header is in either first or second row:
+#Get columns with header in first row:
+net_df_1 = net_df.loc[:, net_df.columns.str.startswith('Unnamed')].rename(columns=net_df.iloc[0])
+#Delete columns without entry in first row:
+net_df_1 = net_df_1.loc[:,~net_df_1.columns.isna() == True]
+#delete first three and last empty rows:
+net_df_1 = net_df_1.drop(index=[0,1,2])
+net_df_1 = net_df_1[:-1]
+
+#Get columns with header in second row and apply as above:
+net_df_2 = net_df.loc[:, net_df.columns.str.startswith('Unnamed')].rename(columns=net_df.iloc[1])
+net_df_2 = net_df_2.loc[:,~net_df_2.columns.isna() == True]
+net_df_2 = net_df_2.drop(index=[0,1,2])
+net_df_2 = net_df_2[:-1]
+
+#Delete empty rows in main data frame: first three and last row
+net_df = net_df.drop(index=[0,1,2])
+net_df = net_df[:-1]
+#Change column names:
+net_df.columns.values[[0, 1]] = ['Recipient', 'Year']
+#Drop empty columns:
+net_df = net_df.loc[:,~net_df.columns.str.startswith('Unnamed')]
+#Add columns with headers in first and second row:
+net_df = pd.concat([net_df, net_df_1, net_df_2], axis = 1)
+#Delete spaces in column names:
+net_df.columns = net_df.columns.str.lstrip() 
+
+#Fill nan in recipient rows with preceding value:
+net_df.Recipient = net_df.Recipient.fillna(method='ffill')
+#Delete totals in rows to only have country recipients:
+net_df = net_df[~net_df.Recipient.str.contains("Total")]
+net_df = net_df[~net_df.Recipient.str.contains("regional")]
+#Delete columns containing totals:
+net_df = net_df.loc[:,~net_df.columns.str.contains('Total')]
+#Fill nan and ".." with minimum value to exclude from ranking:
+net_df = net_df.fillna(-9000)
+net_df = net_df.replace('..',-9000)
+#Keep only columns with bilateral donors:
+#net_df = net_df.iloc[:, 0:31]
+#Get ranking of Germany:
+rank_ger = net_df.join(net_df.rank(axis=1, ascending=False).astype(int).add_suffix('_rank'))
+rank_ger = rank_ger[["Germany_rank"]]
+#Prepare new dataframe for ranking:
+oda_net_rank = net_df[["Recipient", "Year"]]
+
+#Get top 1 value and donor:
+oda_net_rank["Top1-Donor"] = net_df.iloc[:, 2:].idxmax(axis=1)
+oda_net_rank["Top1ODA"] = net_df.iloc[:, 2:].max(axis=1)
+#Replace top-1 values in dataframe with nan and replace nan with 0:
+net_df = net_df[~net_df.isin(oda_net_rank["Top1ODA"])]
+net_df = net_df.fillna(0)
+#Get top 2 value and donor:
+oda_net_rank["Top2-Donor"] = net_df.iloc[:, 2:].idxmax(axis=1)
+oda_net_rank["Top2ODA"] = net_df.iloc[:, 2:].max(axis=1)
+#Replace top-2 values in dataframe with nan and replace nan with 0:
+net_df = net_df[~net_df.isin(oda_net_rank["Top2ODA"])]
+net_df = net_df.fillna(0)
+#Get top 3 value and donor:
+oda_net_rank["Top3-Donor"] = net_df.iloc[:, 2:].idxmax(axis=1)
+oda_net_rank["Top3ODA"] = net_df.iloc[:, 2:].max(axis=1)
+#Add indicator name:
+oda_net_rank["Indicator"] = "Geberranking"
+#Add Germany ranking:
+oda_net_rank["Rank_Germany"] = rank_ger
+
+#Prepare data for deriving iso codes:
+oda_net_rank.loc[oda_net_rank.Recipient == "TÃ¼rkiye", "Recipient"] = "Türkiye"
+#Get mapping table:
+dfkeys = pd.read_excel("https://github.com/datenlabor01/ODA-Ranking/blob/main/Country%20Mapping.xlsx?raw=true")
+dic = dfkeys.set_index('Recipient name (EN)').to_dict()['ISOcode']
+#Map iso codes to country recipients:
+oda_net_rank['ISOCode'] = oda_net_rank['Recipient'].map(dic)
+
+oda_net_rank.to_excel('ODA_Net_ranking.xlsx', index=False)
