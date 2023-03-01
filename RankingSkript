@@ -1,9 +1,9 @@
 # **ODA Geberranking:**
 
 #Query Net ODA: https://stats.oecd.org//Index.aspx?QueryId=120047
-#Query ODA Commitments: https://stats.oecd.org//Index.aspx?QueryId=120047, header = 11
+#Query ODA Gross: https://stats.oecd.org//Index.aspx?QueryId=120753, header = 11
 import pandas as pd 
-net_df = pd.read_excel("https://github.com/datenlabor01/ODA-Ranking/blob/main/odanet.xlsx?raw=true", header = 8)
+net_df = pd.read_excel("https://github.com/datenlabor01/ODA-Ranking/blob/main/gross_oda.xlsx?raw=true", header = 11)
 
 #To extract column names where header is in either first or second row:
 #Get columns with header in first row:
@@ -43,7 +43,7 @@ net_df = net_df.loc[:,~net_df.columns.str.contains('Total')]
 net_df = net_df.fillna(-9000)
 net_df = net_df.replace('..',-9000)
 #Keep only columns with bilateral donors:
-#net_df = net_df.iloc[:, 0:31]
+net_df = net_df.iloc[:, 0:31]
 #Get ranking of Germany:
 rank_ger = net_df.join(net_df.rank(axis=1, ascending=False).astype(int).add_suffix('_rank'))
 rank_ger = rank_ger[["Germany_rank"]]
@@ -72,10 +72,12 @@ oda_net_rank["Rank_Germany"] = rank_ger
 
 #Prepare data for deriving iso codes:
 oda_net_rank.loc[oda_net_rank.Recipient == "TÃ¼rkiye", "Recipient"] = "Türkiye"
+#Delete whitespace:
+oda_net_rank.Recipient = oda_net_rank.Recipient.str.lstrip() 
 #Get mapping table:
 dfkeys = pd.read_excel("https://github.com/datenlabor01/ODA-Ranking/blob/main/Country%20Mapping.xlsx?raw=true")
 dic = dfkeys.set_index('Recipient name (EN)').to_dict()['ISOcode']
 #Map iso codes to country recipients:
 oda_net_rank['ISOCode'] = oda_net_rank['Recipient'].map(dic)
 
-oda_net_rank.to_excel('ODA_Net_ranking.xlsx', index=False)
+oda_net_rank.to_excel('ODA_gross_ranking.xlsx', index=False)
